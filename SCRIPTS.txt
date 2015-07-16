@@ -1,0 +1,119 @@
+DESCRIBE USER_SDO_GEOM_METADATA
+
+INSERT INTO USER_SDO_GEOM_METADATA
+VALUES
+(
+  'dps_crimes',          -- TABLE_NAME
+  'GEOM',           -- COLUMN_NAME
+  SDO_DIM_ARRAY         -- DIMINFO attribute for storing dimension bounds, tolerance
+  (
+    SDO_DIM_ELEMENT
+    (
+      'LONGITUDE',      -- DIMENSION NAME for first dimension
+       -180,            -- SDO_LB for the dimension
+       180,             -- SDO_UB for the dimension
+       .5              -- Tolerance of 0.5 meters
+    ),
+    SDO_DIM_ELEMENT
+    (
+      'LATITUDE',       -- DIMENSION NAME for second dimension
+       -90,             -- SDO_LB for the dimension
+       90,              -- SDO_UB for the dimension
+       .5              -- Tolerance of 0.5 meters
+    )
+    --,SDO_DIM_ELEMENT('Z', -100, 200, .5)
+  ),
+  8307                  -- SRID value for specifying a geodetic coordinate system
+);
+COMMIT;
+
+create INDEX cars_idx ON cars(position) INDEXTYPE IS MDSYS.SPATIAL_INDEX;
+---
+select ID,MIN(SDO_GEOM.SDO_MIN_MBR_ORDINATE(usc.geom,1)) MIN_X FROM USC_MODels usc where id=1024 GROUP BY ID;
+---
+ 
+
+
+---
+--validation of a table
+BEGIN
+SDO_GEOM.VALIDATE_LAYER_WITH_CONTEXT ('USC_MODELS_VALID','GEOM','VALIDATE_USC_RESULTS');
+END;
+/
+----
+--VALIDATION OF A ROW
+SELECT SDO_GEOM.VALIDATE_GEOMETRY_WITH_CONTEXT(USC.GEOM,05) IS_VALID FROM USC_MODELS USC WHERE ID= 1102;
+---
+--DUPLICATE REMOVAL
+SELECT GEOM,SDO_UTIL.REMOVE_DUPLICATE_VERTICES(U.GEOM,05) NEW FROM USC_MODELS U WHERE ID=1001;
+---
+--CRAETE VIEW FOR VALID GEOMS
+CREATE VIEW USC_MODELS_VALID(ID,NAME,COMP_HGT,ROOF_HGT,DESCRIPTION,GEOM) AS
+ SELECT ID,NAME,COMP_HGT,ROOF_HGT,'COMMENT',SDO_UTIL.REMOVE_DUPLICATE_VERTICES(U
+.GEOM,05) FROM USC_MODELS U;
+--
+--CREATE VIEW FOR USC_MODELS + BB
+CREATE VIEW "SPATIAL"."USC_MODELS_VIEW" ("ID","MIN_X","MAX_X","MIN_Y","MAX_Y","COMP_HGT",
+"ROOF_HGT","VRML_URL") AS SELECT ID,MIN(SDO_GEOM.SDO_MIN_MBR_ORDINATE(usc.geom,1)) MIN_X,MAX(SDO_GEOM.SDO_MAX_MBR_ORDINATE(usc.geom,1)) MAX_X,
+MIN(SDO_GEOM.SDO_MIN_MBR_ORDINATE(usc.geom,2)) MIN_Y, MAX(SDO_GEOM.SDO_MAX_MBR_ORDINATE(usc.geom,2)) MAX_Y,
+MAX(COMP_HGT) COMP_HGT,MAX(ROOF_HGT) ROOF_HGT,'infolab-db.usc.edu/ali/wrl/usc-1001.wrl'
+FROM USC_MODels_VALID usc GROUP BY ID ;
+---
+--view for aggr
+select predirecti,name,type,sum(length) length,width, avg(TO_NUMBER(accuracy)),min(TO_NUMBER(zipleft)) zipleft,max(TO_NUMBER(zipright)) zipright,min(TO_NUMBER(leftfromad)) leftfromadd,max(TO_NUMBER(lefttoaddr)) lefttoadd,min(TO_NUMBER(rightfroma)) rightfromaddr,max(TO_NUMBER(righttoadd)) righttoaddr, SDO_AGGR_CONCAT_LINES(r.geom) geom from ali.roads_u r where name='14th' group by name, predirecti,type,width;
+----
+SELECT  r.GEOM ,name FROM roads_cal_u2 r 
+where sdo_filter(
+geom,
+SDO_GEOMETRY(2003, 8307, NULL, SDO_ELEM_INFO_ARRAY(1, 1003, 3),
+SDO_ORDINATE_ARRAY(-118.27758940845798,34.01883554099582,-118.26758940845798,34.02883554099583))) ='TRUE' 
+
+--
+select geom from navtech.streets where DCA='DCA8'AND SDO_WITHIN_DISTANCE(geom,SDO_GEOMETRY(2001,8307,SDO_POINT_TYPE(-77.228303,38.922711,null),null,null), 'DISTANCE=3.0 UNIT=MILE ')='TRUE'
+--
+Lake forest:(-117.70271301269531, 33.61547702504824,-117.66923904418945, 33.657495469220244)
+Virginia: -77.228303,38.922711
+--
+--------------
+create materialized view roads_cal_u2_aggr ("ID" ,"PREDIRECTI" , "NAME" , "TYPE" , "COUNTY_NAME","SEGMENTTYP" ,"BIDIRECTIO" , "LENGTH" , "WIDTH", "ACCURACY" , "ZIPLEFT" , "ZIPRIGHT" , "LEFTFROMADD" , "LEFTTOADD" , "RIGHTFROMADDR" , "RIGHTTOADDR", "GEOM") as select min(id),predirecti,name,type,county_name,segmenttyp,bidirectio,sum(length) length,width, avg(TO_NUMBER(accuracy)) accuracy,min(TO_NUMBER(zipleft)) zipleft,max(TO_NUMBER(zipright)) zipright,min(TO_NUMBER(leftfromad)) leftfromadd,max(TO_NUMBER(lefttoaddr)) lefttoadd,min(TO_NUMBER(rightfroma)) rightfromaddr,max(TO_NUMBER(righttoadd)) righttoaddr, SDO_AGGR_CONCAT_LINES(R.GEOM) from roads_cal_u2 R group by name, predirecti,type,county_name,segmenttyp,width,bidirectio;
+------
+ select code,descript from mtdref where ref_class='BEARING' and dca='DCA1';
+---
+select geom,ST_NM_PREF from navtech.streets where DCA='DCA1'AND ramp='Y' and SDO_WITHIN_DISTANCE(geom,SDO_GEOMETRY(2001,8307,SDO_POINT_TYPE(-117.70271301269531, 33.61547702504824,null),null,null), 'DISTANCE=3.0 UNIT=MILE ')='TRUE' ;
+----
+--alter table link_streets add geom sdo_geometry;
+update link_streets l set l.geom=( select s.geom from streets s where  s.dca='DCA1' and s.link_id = floor(l.link_id /2) and rownum=1);
+-----
+min_x,min_y,max_x,max_y for usc_modles (USC)
+min_x:-118.291256
+max_x:-118.279987
+min_y:34.017277
+max_y:34.025303
+-118.291256,34.017277,-118.279987,34.025303
+SELECT  r.GEOM FROM navtech.streets_dca1 r 
+where sdo_filter(geom,SDO_GEOMETRY(2003, 8307, NULL, SDO_ELEM_INFO_ARRAY(1, 1003, 3),SDO_ORDINATE_ARRAY(-118.291256,34.017277,-118.279987,34.025303))) ='TRUE' 
+
+---
+MBR
+select sdo_geom.sdo_mbr(h.geom) from navtech.oceans h where dca='DCA1' 
+---
+create materialized view streets_dca1_aggr2 (st_name,link_id,func_class,geo
+m) as select st_name,min(link_id),func_class,SDO_AGGR_CONCAT_LINES(R.GEOM) from
+streets_dca1 r where sdo_filter(geom,SDO_GEOMETRY(2003, 8307, NULL,SDO_ELE
+M_INFO_ARRAY(1, 1003, 3),SDO_ORDINATE_ARRAY(-118.381777483243,33.96795553327753,
+-118.3025869098301,34.02933497885855)))  ='TRUE' group by st_name,func_class;
+---
+SDOPRINT:
+D:\Ali>java -classpath d:\ali\Sdoapi.jar;d:\ali\classes12.jar;. SdoPrint jdbc:or
+acle:thin:@infolab-db.usc.edu:1521:starterD  spatial spatial streets_dca1 geom "
+where sdo_filter(geom,SDO_GEOMETRY(2003, 8307, NULL, SDO_ELEM_INFO_ARRAY(1, 1003
+, 3),SDO_ORDINATE_ARRAY(-118.361777483243,34.01,-118.32,34.02))) ='TRUE' and st_
+name is not null" 2
+
+---
+aggregation area:
+select geom from streets_dca1 where sdo_filter(geom,SDO_GEOMETRY(2003, 8307, NULL,SDO_ELEM_INFO_ARRAY(1, 1003, 3),SDO_ORDINATE_ARRAY(-118.381777483243,33.96795553327753,-118.3025869098301,34.02933497885855)))  ='TRUE' and st_name is not null
+
+
+
+lsof -i tcp:8084

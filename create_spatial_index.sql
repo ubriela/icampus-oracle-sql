@@ -1,0 +1,1 @@
+create INDEX posts_location_idx ON posts(location) INDEXTYPE IS MDSYS.SPATIAL_INDEX;

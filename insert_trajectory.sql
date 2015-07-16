@@ -1,0 +1,19 @@
+INSERT INTO USERSTATISTIC(sessionid, userid, time, location) VALUES
+(
+1,
+1099653312,
+CURRENT_TIMESTAMP(3),
+SDO_GEOMETRY
+  (
+    2001,
+    8307,
+    SDO_POINT_TYPE
+    (
+      34.019578861023,
+      -118.288675940292,
+      NULL
+    ),
+    NULL,
+    NULL
+  )
+);
